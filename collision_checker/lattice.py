@@ -1,5 +1,13 @@
 def qubit_lattice(n,d):
-
+    """generate qubit lattice structure for RQC square lattice
+    Args:
+        n (int): number of qubits
+        d (int): number of mux in a line
+    Returns:
+        nodes (list): list of the node labels
+        edges (list): list of the edge labels
+        pos (dict): dictionary of the positions of the nodes for the visualization
+    """
     def node(i,j,k):
         q = 4*(i*d + j) + k
         return q
@@ -35,7 +43,13 @@ def qubit_lattice(n,d):
     return nodes, edges, pos
 
 def mux_lattice(d):
-
+    """generate mux lattice structure for RQC square lattice
+    Args:
+        d (int): number of mux in a line
+    Returns:
+        nodes (list): list of the mux labels
+        pos (dict): dictionary of the positions of the muxs for the visualization
+    """
     nodes = range(d**2)
     pos = {}
     for i in range(d):

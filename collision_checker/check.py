@@ -1,26 +1,36 @@
 import itertools
-import networkx as nx
-from collision_checker.collision import *
 
-def get_collision(nodes, edges, node_info, condition):
-    
-    graph = nx.Graph()
-    graph.add_nodes_from(nodes)
-    graph.add_edges_from(edges)
-    
+def get_collision_info(condition, nodes, edges, node_info, edge_info=None):
+    """check collisions
+    Args:
+        condition (list): list of the collision conditions
+        nodes (list): list of the node labels
+        edges (list): list of the edge labels
+        node_info (dict): dictionary of the node information
+        edge_info (dict): dictionary of the edge information
+    Returns:
+        collision_info (dict): dictionary of the collision information
+    """
     collision_info = {}
     for col in condition:
         collision_info[col] = []
-        col.set_info(node_info, graph)
+        col.set_info(node_info, edge_info)
+        col.set_graph(nodes, edges)
         for i in itertools.permutations(nodes, r=col.body):
-            flag = col.check(*i)
-            if flag:
+            if col.check(*i):
                 collision_info[col].append(i)
-
     return collision_info
 
 def get_safe_lattice(nodes, edges, collision_info):
-    
+    """find safe lattice
+    Args:
+        nodes (list): list of the node labels
+        edges (list): list of the edge labels
+        collision_info (dict): dictionary of the collision information
+    Returns:
+        safe_nodes (list): list of the safe node labels
+        safe_edges (list): list of the safe edge labels
+    """
     all_edges = []
     for i in edges:
         all_edges.append(i)
@@ -30,7 +40,7 @@ def get_safe_lattice(nodes, edges, collision_info):
     cedges = set()
     for collision, i in collision_info.items():
         for j in i:
-            rnodes, redges = collision.removal(*j)
+            rnodes, redges = collision.remove(*j)
             cnodes |= set(rnodes)
             cedges |= set(redges)
 
@@ -41,5 +51,5 @@ def get_safe_lattice(nodes, edges, collision_info):
 
     snodes = list(set(nodes) - cnodes)
     sedges = list(set(sedges) - cedges)
-    
+
     return snodes, sedges
