@@ -1,11 +1,10 @@
-import itertools
 import networkx as nx
 import matplotlib.pyplot as plt
 from .lattice import qubit_lattice, mux_lattice
 
 def visualize(n, d, collisions=None, safe_nodes=None, safe_edges=None):
-    nodes, edges, pos = qubit_lattice(n=64,d=4)
-    mnodes, mpos = mux_lattice(d=4)
+    nodes, edges, pos = qubit_lattice(n,d)
+    mnodes, mpos = mux_lattice(d)
     
     q = nx.Graph()
     q.add_nodes_from(nodes)

@@ -6,12 +6,14 @@ class FrequencyCollision:
         self.name = None
         self.note = None
         self.body = None
-        self.node_unusable = False
 
-        self.bound = {1:0.1, 2:5.3} # distance : ratio = effective coupling / effective detuning
         self.coupling = 15 # MHz
         self.cr_drive_amplitude_low_to_high = 400 # MHz
-        self.cr_drive_amplitude_high_to_low = 400/3 # MHz       
+        self.cr_drive_amplitude_high_to_low = 400/3 # MHz
+        
+    def set_info(self, nodes, graph):
+        self.nodes = nodes
+        self.graph = graph
 
 class Type0A(FrequencyCollision):
     def __init__(self):
@@ -20,11 +22,6 @@ class Type0A(FrequencyCollision):
         self.name = "Type0A"
         self.note = "bad or dead qubits"
         self.body = 1
-        self.node_unusable = True
-        
-    def set_info(self, nodes, graph):
-        self.nodes = nodes
-        self.graph = graph
         
     def check(self, i):
         wi = self.nodes[i]["frequency"]
@@ -36,6 +33,11 @@ class Type0A(FrequencyCollision):
             return True
             
         return False
+    
+    def removal(self, i):
+        removal_node = [i]
+        removal_edge = []
+        return removal_node, removal_edge
 
 class Type0B(FrequencyCollision):
     def __init__(self):
@@ -44,10 +46,6 @@ class Type0B(FrequencyCollision):
         self.name = "Type0B"
         self.note = "too large detuning"
         self.body = 2
-        
-    def set_info(self, nodes, graph):
-        self.nodes = nodes
-        self.graph = graph
         
     def check(self, i,j):
         dij = nx.shortest_path_length(self.graph, i, j)
@@ -58,19 +56,19 @@ class Type0B(FrequencyCollision):
             return True
             
         return False
+    
+    def removal(self, i, j):
+        removal_node = []
+        removal_edge = [(i,j), (j,i)]
+        return removal_node, removal_edge
 
-class Type1(FrequencyCollision):
+class Type1A(FrequencyCollision):
     def __init__(self):
         super().__init__()
         
-        self.name = "Type1"
+        self.name = "Type1A"
         self.note = "ge(i) - ge(j)"
         self.body = 2
-        self.node_unusable = True
-        
-    def set_info(self, nodes, graph):
-        self.nodes = nodes
-        self.graph = graph
         
     def check(self, i,j):
         dij = nx.shortest_path_length(self.graph, i, j)
@@ -83,11 +81,53 @@ class Type1(FrequencyCollision):
         deff = wi - wj
         geff = g
         
-        for key, val in self.bound.items():
-            if dij == key:
-                collision = (abs(geff) > val*abs(deff))
-                return collision
-        return False          
+        if dij == 1:
+            collision = (abs(geff) > 0.1*abs(deff))
+            return collision
+        if dij == 2:
+            collision = (abs(geff) > 5.3*abs(deff))
+            return collision
+        return False 
+    
+    def removal(self, i, j):
+        removal_node = [i,j]
+        removal_edge = []
+        return removal_node, removal_edge
+    
+class Type1B(FrequencyCollision):
+    def __init__(self):
+        super().__init__()
+        
+        self.name = "Type1B"
+        self.note = "CR(k>i) - CR(k>j)"
+        self.body = 2
+        
+    def check(self, i,j):
+        dij = nx.shortest_path_length(self.graph, i, j)
+        wi = self.nodes[i]["frequency"]
+        wj = self.nodes[j]["frequency"]
+        ai = self.nodes[i]["anharmonicity"]
+        aj = self.nodes[j]["anharmonicity"]
+        g = self.coupling
+        
+        deff = wi - wj
+        
+        if dij == 2:
+            collision = (25 > abs(deff))
+            return collision
+        
+        return False 
+    
+    def removal(self, i, j):
+        removal_node = []
+        removal_edge = []
+        for k in self.nodes.keys():
+            dik = nx.shortest_path_length(self.graph, i, k)
+            djk = nx.shortest_path_length(self.graph, j, k)
+            if (dik == 1) and (djk == 1):
+                removal_edge.append((k,i))
+                removal_edge.append((k,j))
+        return removal_node, removal_edge
 
 class Type2A(FrequencyCollision):
     def __init__(self):
@@ -95,10 +135,6 @@ class Type2A(FrequencyCollision):
         self.name = "Type2A"
         self.note = "gf/2(i) in CR(i>j)"
         self.body = 2
-        
-    def set_info(self, nodes, graph):
-        self.nodes = nodes
-        self.graph = graph
         
     def check(self, i,j):
         dij = nx.shortest_path_length(self.graph, i, j)
@@ -117,12 +153,16 @@ class Type2A(FrequencyCollision):
         deff = 2*wi + ai - 2*wj
         geff = min(oi, abs(2**(-0.5)*oi**2*(1/(wi-wj)+1/(wj-(wi+ai)))))
         
-        for key, val in self.bound.items():
-            if dij == key:
-                collision = (abs(geff) > val*abs(deff))
-                return collision
+        if dij == 1:
+            collision = (abs(geff) > 0.1*abs(deff))
+            return collision
                 
         return False
+    
+    def removal(self, i, j):
+        removal_node = []
+        removal_edge = [(i,j)]
+        return removal_node, removal_edge
 
 class Type2B(FrequencyCollision):
     def __init__(self):
@@ -130,10 +170,6 @@ class Type2B(FrequencyCollision):
         self.name = "Type2B"
         self.note = "fogi(i>j) in CR(i>j)"
         self.body = 2
-        
-    def set_info(self, nodes, graph):
-        self.nodes = nodes
-        self.graph = graph
         
     def check(self, i,j):
         dij = nx.shortest_path_length(self.graph, i, j)
@@ -153,24 +189,23 @@ class Type2B(FrequencyCollision):
         deff = 2*wi + ai - 2*wj
         geff = 2**(-0.5)*g*oi*(1/(wi-wj)+1/(wj-(wi+ai)))
         
-        for key, val in self.bound.items():
-            if dij == key:
-                collision = (abs(geff) > val*abs(deff))
-                return collision
+        if dij == 1:
+            collision = (abs(geff) > 0.1*abs(deff))
+            return collision
                 
         return False
-
+    
+    def removal(self, i, j):
+        removal_node = []
+        removal_edge = [(i,j)]
+        return removal_node, removal_edge
+    
 class Type3(FrequencyCollision):
     def __init__(self):
         super().__init__()
         self.name = "Type3"
         self.note = "ef(i) - ge(j)"
         self.body = 2
-        self.node_unusable = True
-        
-    def set_info(self, nodes, graph):
-        self.nodes = nodes
-        self.graph = graph
         
     def check(self, i,j):
         dij = nx.shortest_path_length(self.graph, i, j)
@@ -183,12 +218,19 @@ class Type3(FrequencyCollision):
         deff = wi + ai - wj
         geff = 2**0.5 * g
         
-        for key, val in self.bound.items():
-            if dij == key:
-                collision = (abs(geff) > val*abs(deff))
-                return collision
+        if dij == 1:
+            collision = (abs(geff) > 0.1*abs(deff))
+            return collision
+        if dij == 2:
+            collision = (abs(geff) > 5.3*abs(deff))
+            return collision
                 
         return False
+    
+    def removal(self, i, j):
+        removal_node = []
+        removal_edge = [(i,j), (j,i)]
+        return removal_node, removal_edge
 
 class Type7(FrequencyCollision):
     def __init__(self):
@@ -196,10 +238,6 @@ class Type7(FrequencyCollision):
         self.name = "Type7"
         self.note = "fogi(i>k) in CR(i>j)"
         self.body = 3
-        
-    def set_info(self, nodes, graph):
-        self.nodes = nodes
-        self.graph = graph
         
     def check(self, i,j,k):
         dij = nx.shortest_path_length(self.graph, i, j)
@@ -225,11 +263,16 @@ class Type7(FrequencyCollision):
             deff = 2*wi + ai - (wj + wk)
             geff = 2**(-0.5)*g*oi*(1/(wi-wj)+1/(wk-(wi+ai)) + 1/(wi+ai-wj) + 1/(wk-wi))
             
-            collision = (abs(geff) > self.bound[1]*abs(deff))
+            collision = (abs(geff) > 0.1*abs(deff))
             return collision
         
         else:  
             return False    
+           
+    def removal(self, i, j, k):
+        removal_node = []
+        removal_edge = [(i,j)]
+        return removal_node, removal_edge
 
 class Type8(FrequencyCollision):
     def __init__(self):
@@ -237,10 +280,6 @@ class Type8(FrequencyCollision):
         self.name = "Type8"
         self.note = "ge(i)@CR(i>j) - ge(k)"
         self.body = 3
-        
-    def set_info(self, nodes, graph):
-        self.nodes = nodes
-        self.graph = graph
         
     def check(self, i,j,k):
         dij = nx.shortest_path_length(self.graph, i, j)
@@ -270,6 +309,11 @@ class Type8(FrequencyCollision):
         
         else:
             return False    
+        
+    def removal(self, i, j, k):
+        removal_node = []
+        removal_edge = [(i,j)]
+        return removal_node, removal_edge
 
 class Type9(FrequencyCollision):
     def __init__(self):
@@ -278,10 +322,6 @@ class Type9(FrequencyCollision):
         self.note = "ge(i)@CR(i>j) - ef(k)"
         self.body = 3
         self.bound = {1:0.1, 2:1}
-        
-    def set_info(self, nodes, graph):
-        self.nodes = nodes
-        self.graph = graph
         
     def check(self, i,j,k):
         dij = nx.shortest_path_length(self.graph, i, j)
@@ -311,3 +351,8 @@ class Type9(FrequencyCollision):
         
         else:
             return False
+        
+    def removal(self, i, j, k):
+        removal_node = []
+        removal_edge = [(i,j)]
+        return removal_node, removal_edge
