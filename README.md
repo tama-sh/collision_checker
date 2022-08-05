@@ -3,6 +3,7 @@ Checking the frequency collisions [[1]](https://www.nature.com/articles/s41534-0
 
 ## Frequency collisions taken into account
 - Type0A
+
 Dead or Bad qubit
 - Type0B
 - Type1A
