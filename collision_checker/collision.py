@@ -29,7 +29,8 @@ class FrequencyCollision:
             "min_t1" : 5, # us
             "min_t2" : 5, # us
             "bound_dist_1" : 0.2,
-            "nnn_coupling" : np.nan,
+            "bound_control_excite": 0.75,
+            "nnn_coupling" : np.nan
         }
         if default is not None:
             for key, val in default.items():
@@ -41,6 +42,7 @@ class FrequencyCollision:
 
         # set alias
         self.b1 = self.default["bound_dist_1"]
+        self.bc = self.default["bound_control_excite"]
         self.ozx = 1000/(4*self.default["cnot_time"]) # MHZ (zx interaction while CR)
 
     def set_graph(self, nodes, edges):
@@ -331,7 +333,7 @@ class Type1C(FrequencyCollision):
             oi = self.ozx*abs((wi-wj)*(wi+ai-wj)/(gij*ai))
             deff = wi - wj
             geff = oi
-            collision = (abs(geff) > self.b1*abs(deff))
+            collision = (abs(geff) > self.bc*abs(deff))
             # print(self.note, collision, (i,j), oi, geff, deff)
             return collision
         else:
@@ -561,7 +563,7 @@ class Type3B(FrequencyCollision):
             oi = self.ozx*abs((wi-wj)*(wi+ai-wj)/(gij*ai))
             deff = wi + ai - wj
             geff = 2**0.5 * oi
-            collision = (abs(geff) > self.b1*abs(deff))
+            collision = (abs(geff) > self.bc*abs(deff))
             # print(self.note, collision, (i,j), oi, geff, deff)
             return collision
         else:
