@@ -14,6 +14,8 @@ class FrequencyCollision:
         self.note = None
         self.body = None
 
+        design_nn_detuining = 700 # MHz
+
         self.default = {
             "frequency" : np.nan, # MHz
             "anharmonicity" : np.nan, # MHz
@@ -26,16 +28,19 @@ class FrequencyCollision:
             "max_detuning" : 1300, # MHz
             "min_t1" : 5, # us
             "min_t2" : 5, # us
-            "bound_dist_1" : 0.1,
-            "bound_dist_2" : 5.3,
+            "bound_dist_1" : 0.2,
+            "nnn_coupling" : np.nan,
         }
         if default is not None:
             for key, val in default.items():
                 self.default[key] = val
 
+        if np.isnan(self.default['nnn_coupling']):
+            nn_detuning = 800 # MHz
+            self.default['nnn_coupling'] = self.default['coupling']**2/nn_detuning # qubit mediated interaction
+
         # set alias
         self.b1 = self.default["bound_dist_1"]
-        self.b2 = self.default["bound_dist_2"]
         self.ozx = 1000/(4*self.default["cnot_time"]) # MHZ (zx interaction while CR)
 
     def set_graph(self, nodes, edges):
@@ -209,14 +214,14 @@ class Type1A(FrequencyCollision):
         dij = nx.shortest_path_length(self.graph, i, j)
         wi = self.get_value(i, "frequency")
         wj = self.get_value(j, "frequency")
-        gij = self.get_value((i,j), "coupling")
         deff = wi - wj
-        geff = gij
         if dij == 1:
-            collision = (abs(geff) > self.b1*abs(deff))
+            gij = self.get_value((i,j), "coupling")
+            collision = (2*abs(gij) > self.b1*abs(deff))
             return collision
         if dij == 2:
-            collision = (abs(geff) > self.b2*abs(deff))
+            gij = self.get_value((i,j), "nnn_coupling")
+            collision = (2*abs(gij) > self.b1*abs(deff))
             return collision
         return False
     
@@ -232,7 +237,7 @@ class Type1A(FrequencyCollision):
 
 class Type1B(FrequencyCollision):
     """
-    Class of Frequency Collision Type1A
+    Class of Frequency Collision Type1B
 
         targets:
             i : CR control qubit
@@ -286,6 +291,62 @@ class Type1B(FrequencyCollision):
                 removal_edge.append((k,j))
         return removal_node, removal_edge
 
+class Type1C(FrequencyCollision):
+    """
+    Class of Frequency Collision Type1C
+
+        targets:
+            i : CR control qubit
+            j : CR target qubit
+
+        conditions:
+            (1) CR(i->j) excits GE(i) transition
+
+        removals:
+            (i,j)
+    """
+
+    def __init__(self, default=None):
+        """Initailize the Class
+        Args:
+            default (dict): dictionary of the default values
+        """
+        super().__init__(default)
+        self.name = "Type1C"
+        self.note = "ge(i) - CR(i>j)"
+        self.body = 2
+        
+    def check(self, i,j):
+        """check the collision for target
+        Args:
+            i (int): target qubit
+            j (int): target qubit
+        """
+        dij = nx.shortest_path_length(self.graph, i, j)
+        if dij == 1:
+            wi = self.get_value(i, "frequency")
+            wj = self.get_value(j, "frequency")
+            ai = self.get_value(i, "anharmonicity")
+            gij = self.get_value((i,j), "coupling")
+            oi = self.ozx*abs((wi-wj)*(wi+ai-wj)/(gij*ai))
+            deff = wi - wj
+            geff = oi
+            collision = (abs(geff) > self.b1*abs(deff))
+            # print(self.note, collision, (i,j), oi, geff, deff)
+            return collision
+        else:
+            return False
+
+    def remove(self, i, j):
+        """remove the corresponding nodes or edges of the collision
+        Args:
+            i (int): target qubit
+            j (int): target qubit
+        """
+        removal_node = []
+        removal_edge = [(i,j)]
+        return removal_node, removal_edge
+
 class Type2A(FrequencyCollision):
     """
     Class of Frequency Collision Type2A
@@ -324,7 +385,7 @@ class Type2A(FrequencyCollision):
             gij = self.get_value((i,j), "coupling")
             oi = self.ozx*abs((wi-wj)*(wi+ai-wj)/(gij*ai))
             deff = 2*wi + ai - 2*wj
-            geff = min(oi, abs(2**(-0.5)*oi**2*(1/(wi-wj)+1/(wj-(wi+ai)))))
+            geff = abs(2**(-1.5)*oi**2*(1/((wi+ai)-wj)-1/(wi-wj)))
             collision = (abs(geff) > self.b1*abs(deff))
             return collision
         else:
@@ -378,7 +439,7 @@ class Type2B(FrequencyCollision):
             gij = self.get_value((i,j), "coupling")
             oi = self.ozx*abs((wi-wj)*(wi+ai-wj)/(gij*ai))
             deff = 2*wi + ai - 2*wj
-            geff = 2**(-0.5)*gij*oi*(1/(wi-wj)+1/(wj-(wi+ai)))
+            geff = 2**0.5*gij*oi*(1/(wi-wj)+1/(wj-(wi+ai)))
             collision = (abs(geff) > self.b1*abs(deff))
             return collision
         else:
@@ -394,9 +455,9 @@ class Type2B(FrequencyCollision):
         removal_edge = [(i,j)]
         return removal_node, removal_edge
     
-class Type3(FrequencyCollision):
+class Type3A(FrequencyCollision):
     """
-    Class of Frequency Collision Type2A
+    Class of Frequency Collision Type3A
 
         targets:
             i : any qubit
@@ -418,7 +479,7 @@ class Type3(FrequencyCollision):
             safe_mode (bool): whether you remove the both of the nodes in Type3 or not
         """
         super().__init__(default)
-        self.name = "Type3"
+        self.name = "Type3A"
         self.note = "ef(i) - ge(j)"
         self.body = 2
         self.safe_mode = safe_mode
@@ -433,14 +494,16 @@ class Type3(FrequencyCollision):
         wi = self.get_value(i, "frequency")
         wj = self.get_value(j, "frequency")
         ai = self.get_value(i, "anharmonicity")
-        gij = self.get_value((i,j), "coupling")
         deff = wi + ai - wj
-        geff = 2**0.5 * gij
         if dij == 1:
+            gij = self.get_value((i,j), "coupling")
+            geff = 2**1.5 * gij
             collision = (abs(geff) > self.b1*abs(deff))
             return collision
         if dij == 2:
-            collision = (abs(geff) > self.b2*abs(deff))
+            gij = self.get_value((i,j), "nnn_coupling")
+            geff = 2**1.5 * gij
+            collision = (abs(geff) > self.b1*abs(deff))
             return collision
         return False
 
@@ -456,6 +519,62 @@ class Type3(FrequencyCollision):
         else:
             removal_node = []
             removal_edge = [(i,j), (j,i)]
+        return removal_node, removal_edge
+
+class Type3B(FrequencyCollision):
+    """
+    Class of Frequency Collision Type3B
+
+        targets:
+            i : any qubit
+            j : qubit (nearest or next nearest neighbor of i)
+
+        conditions:
+            (1) CR(i>j) excits EF(i) transition
+
+        removals:
+            (i,j)
+    """
+    def __init__(self, default=None, safe_mode=False):
+        """Initailize the Class
+        Args:
+            default (dict): dictionary of the default values
+            safe_mode (bool): whether you remove the both of the nodes in Type3 or not
+        """
+        super().__init__(default)
+        self.name = "Type3B"
+        self.note = "ef(i) - CR(i>j)"
+        self.body = 2
+        
+    def check(self, i,j):
+        """check the collision for target
+        Args:
+            i (int): target qubit
+            j (int): target qubit
+        """
+        dij = nx.shortest_path_length(self.graph, i, j)
+        if dij == 1:
+            wi = self.get_value(i, "frequency")
+            wj = self.get_value(j, "frequency")
+            ai = self.get_value(i, "anharmonicity")
+            gij = self.get_value((i,j), "coupling")
+            oi = self.ozx*abs((wi-wj)*(wi+ai-wj)/(gij*ai))
+            deff = wi + ai - wj
+            geff = 2**0.5 * oi
+            collision = (abs(geff) > self.b1*abs(deff))
+            # print(self.note, collision, (i,j), oi, geff, deff)
+            return collision
+        else:
+            return False
+
+    def remove(self, i, j):
+        """remove the corresponding nodes or edges of the collision
+        Args:
+            i (int): target qubit
+            j (int): target qubit
+        """
+        removal_node = []
+        removal_edge = [(i,j)]
         return removal_node, removal_edge
 
 class Type7(FrequencyCollision):
@@ -501,7 +620,7 @@ class Type7(FrequencyCollision):
             gik = self.get_value((i,k), "coupling")
             oi = self.ozx*abs((wi-wj)*(wi+ai-wj)/(gij*ai))
             deff = 2*wi + ai - (wj + wk)
-            geff = 2**(-0.5)*gik*oi*(1/(wi-wj)+1/(wk-(wi+ai)) + 1/(wi+ai-wj) + 1/(wk-wi))
+            geff = 2**(-0.5)*gik*oi*(1/(wi+ai-wj)+1/(wi+ai-wk)-1/(wi-wj)-1/(wi-wk))
             collision = (abs(geff) > self.b1*abs(deff))
             return collision
         else:
