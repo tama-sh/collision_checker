@@ -46,7 +46,7 @@ def visualize(n, d, collision=None, safe_nodes=None, safe_edges=None, output=Tru
 
     if output:
         plt.figure(figsize=(1.5*d, 1.5*d))
-    nx.draw(q, pos, with_labels=True, node_color="k", edge_color="k", width=3, font_color="w", font_size=15, node_size=500)
+    nx.draw(q, pos, with_labels=True, node_color="k", edge_color=(0, 0, 0, 0.3), style="--", width=3, font_color="w", font_size=15, node_size=500)
     nx.draw(m, mpos, with_labels=True, node_color="w", edge_color="k", width=3, font_size=20)
     nx.draw(c, pos, with_labels=True, arrowsize=10, arrowstyle="->",node_color="r", edge_color="r", width=3, font_color="w", font_size=15, node_size=500)
     nx.draw(s, pos, with_labels=True, arrowsize=10, arrowstyle="->",node_color="b", edge_color="b", width=3, font_color="w", font_size=15, node_size=500)
@@ -68,10 +68,10 @@ def visualize_all(n, d, collision_info, safe_nodes, safe_edges):
     plt.figure(figsize=(1.5*d*x, 1.5*d*x))
     for i, (collision, collision_list) in enumerate(collision_info.items()):
         plt.subplot(x,x,i+1)
-        plt.title(collision.name)
+        plt.title(collision.name, fontsize=20)
         visualize(n, d, collision=collision_list, output=False)
     plt.subplot(x,x,i+2)
-    plt.title("Safe Lattice")
+    plt.title("Safe Lattice", fontsize=20)
     visualize(n, d, safe_nodes=safe_nodes, safe_edges=safe_edges, output=False)
     plt.tight_layout()
     plt.show()

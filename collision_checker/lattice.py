@@ -33,12 +33,13 @@ def qubit_lattice(n,d):
                 edges.append((node(i,j,3), node(i,j+1,2)))
                 
     pos = {}
+    l_in = 0.275
     for i in range(d):
         for j in range(d):       
-                pos[node(i,j,0)] = (j - 1/3, -i + 1/3)
-                pos[node(i,j,1)] = (j +1/3, -i + 1/3)
-                pos[node(i,j,2)] = (j - 1/3, -i - 1/3)
-                pos[node(i,j,3)] = (j +1/3, -i - 1/3)
+                pos[node(i,j,0)] = (j - l_in, -i + l_in)
+                pos[node(i,j,1)] = (j + l_in, -i + l_in)
+                pos[node(i,j,2)] = (j - l_in, -i - l_in)
+                pos[node(i,j,3)] = (j + l_in, -i - l_in)
                 
     return nodes, edges, pos
 
