@@ -74,4 +74,6 @@ def visualize_all(n, d, collision_info, safe_nodes, safe_edges):
     plt.title("Safe Lattice", fontsize=20)
     visualize(n, d, safe_nodes=safe_nodes, safe_edges=safe_edges, output=False)
     plt.tight_layout()
+    fig = plt.gcf()
     plt.show()
+    return fig
